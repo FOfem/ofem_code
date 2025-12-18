@@ -1,0 +1,55 @@
+from tkinter import Label, Tk 
+
+import time
+import datetime
+import customtkinter
+
+            #############################
+            #   FORRACORP. LTD          #
+            #   UBI, Fredrick           #
+            #   Digital Clock (X-Theme) #   
+            #############################
+
+
+
+customtkinter.set_appearance_mode("system")
+# There are three settings for the mode. You can chose: "system", "light" or "dark". #
+
+app_window = customtkinter.CTk()
+app_window.title("Digital Clock")
+app_window.iconbitmap('forra.jpg')
+app_window.geometry("1450x620") 
+app_window.resizable(1,1)
+
+text_font= ("Boulder", 312, 'bold')
+text_font2= ("Boulder", 100, 'bold', 'italic')
+background = "silver"
+foreground= "black"
+border_width = 25
+
+app_window = Label(app_window, bg=background, bd=border_width) 
+app_window.grid()
+
+label = Label(app_window, font=text_font, fg=foreground, bg=background, bd=border_width) 
+label.grid(row=4, column=1)
+
+label2 = Label(app_window, font=text_font2, fg=foreground, bg=background, bd=border_width) 
+label2.grid(row=5, column=1)
+
+def digital_clock(): 
+   time_live = time.strftime("%H:%M:%S")
+   label.config(text=time_live) 
+   label.after(200, digital_clock)
+
+def digital_date():
+    date_live = datetime.datetime.now()
+    date = date_live.strftime("%A %B %d, %Y")
+    label2.config(text=date) 
+    label2.after(1, digital_date)
+
+
+digital_clock()
+digital_date()
+
+app_window.mainloop()
+
