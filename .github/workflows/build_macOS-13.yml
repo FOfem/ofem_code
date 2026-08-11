@@ -32,6 +32,8 @@ jobs:
       run: |
         brew update
         brew install portaudio libsndfile llvm@14
+        # Unlink newer llvm versions specifically to prevent conflict
+        brew unlink llvm@18 || true
         brew unlink llvm || true
         brew link --force --overwrite llvm@14
     
