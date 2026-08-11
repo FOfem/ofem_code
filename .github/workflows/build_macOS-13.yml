@@ -28,14 +28,15 @@ jobs:
       run: |
         chmod -R +x ./
     
-    - name: Install system audio dependencies (macOS)
+    - name: Install system audio & LLVM dependencies (macOS)
       run: |
         brew update
-        brew install portaudio libsndfile
+        brew install portaudio libsndfile llvm@14
     
     - name: Install Python dependencies
       run: |
-        python -m pip install --upgrade pip
+        python -m pip install --upgrade pip setuptools wheel
+        export LLVM_CONFIG="$(brew --prefix llvm@14)/bin/llvm-config"
         pip install -r requirements/prod.txt
         pip install pyinstaller pytest pytest-cov
         pip install -e .
