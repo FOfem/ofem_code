@@ -8,7 +8,6 @@ on:
   release:
     types: [ created ]
 
-# Explicitly declare permissions needed for GITHUB_TOKEN operations
 permissions:
   contents: read
 
@@ -27,7 +26,7 @@ jobs:
     
     - name: Grant execution permissions to build scripts
       run: |
-        chmod +x -R ./
+        chmod -R +x ./
     
     - name: Install system audio dependencies (macOS)
       run: |
