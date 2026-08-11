@@ -1,77 +1,64 @@
-name: macOS Intel Build (2017 MacBook Air)
+name: Build VoiceForge (macOS 13 / Intel)
 
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
-  workflow_dispatch:
+  release:
+    types: [ created ]
+
+# Explicitly declare permissions needed for GITHUB_TOKEN operations
+permissions:
+  contents: read
 
 jobs:
-  test:
-    name: Test (macOS Intel, Python 3.11)
-    runs-on: macos-13
-
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-        cache: 'pip'
-
-    - name: Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements/dev.txt
-        pip install -e .
-
-    - name: Run Pytest (Audio Hardware Bypassed)
-      env:
-        # Force sounddevice/portaudio to skip hardware access where supported
-        SD_ENABLE_DUMMY: 1
-        PYTHONWARNINGS: "ignore"
-      run: |
-        pytest -v tests/
-
   build-macos:
-    needs: test
-    name: Build macOS App (Intel x86_64)
-    runs-on: macos-13
-
+    runs-on: macos-15-intel
+    
     steps:
-    - name: Checkout Code
+    - name: Checkout repository
       uses: actions/checkout@v4
-
-    - name: Set up Python
+    
+    - name: Set up Python 3.11
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-        cache: 'pip'
-
-    - name: Install Production & Packaging Dependencies
+    
+    - name: Grant execution permissions to build scripts
+      run: |
+        chmod +x -R ./
+    
+    - name: Install system audio dependencies (macOS)
+      run: |
+        brew update
+        brew install portaudio libsndfile
+    
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements/prod.txt
-        pip install pyinstaller Pillow
-
-    - name: Install macOS Packaging Tooling
-      run: brew install create-dmg
-
-    - name: Generate High-Res App Icons
-      run: python assets/generate_icons.py
-
-    - name: Grant Executable Permissions
-      run: chmod +x scripts/*.sh
-
-    - name: Execute macOS Build Script
-      shell: bash
-      run: ./scripts/build_macos.sh
-
+        pip install pyinstaller pytest pytest-cov
+        pip install -e .
+    
+    - name: Run tests
+      env:
+        PYTHONPATH: .
+      run: |
+        pytest tests/ -v --cov=src --cov-report=xml
+    
+    - name: Build macOS App Bundle & Executable with PyInstaller
+      env:
+        PYTHONPATH: .
+      run: |
+        pyinstaller --name="VoiceForge" --paths=src --windowed --onefile src/main.py
+    
+    - name: Grant execution permissions on output build
+      run: |
+        chmod +x dist/VoiceForge
+    
     - name: Upload macOS Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: VoiceForge-macOS-Intel
-        path: dist/VoiceForge-*.dmg
+        name: VoiceForge-macOS-Intel-py3.11
+        path: dist/
