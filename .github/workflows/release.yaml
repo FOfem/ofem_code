@@ -1,0 +1,54 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    name: Build & Release Package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            build_cmd: ./scripts/build_macos.sh
+            asset_pattern: dist/*.dmg
+          - os: windows-latest
+            build_cmd: scripts\build_windows.bat
+            asset_pattern: dist/VoiceForge-*-Setup.exe
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install System Dependencies
+      if: runner.os == 'macOS'
+      run: brew install create-dmg
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements/prod.txt
+        pip install pyinstaller Pillow
+
+    - name: Generate App Icons
+      run: python assets/generate_icons.py
+
+    - name: Build Desktop Application
+      shell: bash
+      run: ${{ matrix.build_cmd }}
+
+    - name: Publish Release Assets
+      uses: softprops/action-gh-release@v2
+      with:
+        files: ${{ matrix.asset_pattern }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
