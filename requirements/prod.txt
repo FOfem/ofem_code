@@ -1,3 +1,23 @@
--r base.txt
-pyinstaller>=6.0.0
-pillow>=10.0.0
+# Core dependencies - using pre-built wheels where possible
+torch>=2.0.0
+torchvision>=0.15.0
+torchaudio>=2.0.0
+
+# Audio processing
+sounddevice>=0.4.0
+soundfile>=0.10.0
+
+# Scientific computing
+numpy>=1.21.0
+scipy>=1.7.0
+
+# TTS - use specific version that works
+TTS>=0.14.0
+
+# Utilities
+pyyaml>=6.0
+requests>=2.28.0
+
+# For building
+setuptools>=65.0.0
+wheel>=0.40.0
