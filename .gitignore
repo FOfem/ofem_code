@@ -30,3 +30,9 @@ ENV/
 .vscode/
 *.dmg
 *.exe
+
+# .gitignore additions if needed
+!installer.iss
+!Dockerfile
+!pyproject.toml
+!setup.py
