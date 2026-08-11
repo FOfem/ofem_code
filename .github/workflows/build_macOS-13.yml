@@ -32,11 +32,17 @@ jobs:
       run: |
         brew update
         brew install portaudio libsndfile llvm@14
+        brew link --overwrite --force llvm@14
+        echo "$(brew --prefix llvm@14)/bin" >> $GITHUB_PATH
     
     - name: Install Python dependencies
+      env:
+        LLVM_CONFIG: /usr/local/opt/llvm@14/bin/llvm-config
+        LDFLAGS: "-L/usr/local/opt/llvm@14/lib"
+        CPPFLAGS: "-I/usr/local/opt/llvm@14/include"
       run: |
         python -m pip install --upgrade pip setuptools wheel
-        export LLVM_CONFIG="$(brew --prefix llvm@14)/bin/llvm-config"
+        pip install --only-binary=:all: llvmlite || true
         pip install -r requirements/prod.txt
         pip install pyinstaller pytest pytest-cov
         pip install -e .
