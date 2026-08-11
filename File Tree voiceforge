@@ -1,0 +1,35 @@
+voiceforge/
+├── .github/
+│   └── workflows/          # Automated CI/CD pipelines (PyInstaller & pytest matrices)
+│       ├── build.yml       # Automated CI/CD pipelines (PyInstaller & pytest matrices)
+│       └── release.yml     # Automated CI/CD pipelines (PyInstaller & pytest matrices)
+├── assets/
+│   └── generate_icons.py
+├── configs/                # Environment configs (logging.conf)
+│   └── logging.conf
+├── requirements/           # Modular dependency locks (base.txt, dev.txt, prod.txt)[cite: 26, 27, 28]
+│   ├── base.txt
+│   ├── dev.txt
+│   └── prod.txt
+├── scripts/                # Native OS packaging scripts
+│   ├── build_linux.sh      # Linux binary packaging script
+│   ├── build_macos.sh      # macOS App Bundle & DMG builder[cite: 20]
+│   └── build_windows.bat   # Windows standalone executable builder[cite: 22]
+├── src/     				# Primary application source code
+│   ├── __init__.py         # Package metadata (v1.0.0)[cite: 25]
+│   ├── app.py              # Tkinter GUI implementation & desktop navigation
+│   ├── main.py             # Tkinter GUI implementation & desktop navigation
+│   ├── recorder.py         # Audio recording module using sounddevice & soundfile
+│   ├── trainer.py          # Coqui TTS training runner & dataset preparation
+│   ├── utils.py            # Configuration, path sanitization, & environment checks
+│   └── resources/          # Application assets (ICNS, ICO, UI stylesheet templates)
+├── tests/                  # Unit testing suite
+│   ├── test_recorder.py    # Hardware-mocked audio recording tests
+│   └── test_trainer.py     # Dataset prep & training estimation tests
+├── .gitignore              # Packaging & Git exclusion rules
+├── LICENSE                 # Documentation & MIT licensing metadata[cite: 25]
+├── MANIFEST.in             # Packaging & Git exclusion rules
+├── README.md               # Documentation & MIT licensing metadata[cite: 25]
+├── pyproject.toml          # Modern PEP 621 packaging definitions
+├── setup.py                # Modern PEP 621 packaging definitions
+└── voiceforge.spec

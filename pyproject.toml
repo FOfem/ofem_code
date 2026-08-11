@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voiceforge"
+version = "1.0.0"
+description = "ForraCorp VoiceForge - Personal Voice Model Training Studio"
+readme = "README.md"
+authors = [
+    { name = "Fredrick Ofem Ubi", email = "forracorp1@gmail.com" }
+]
+requires-python = ">=3.10"
+
+dependencies = [
+    "coqui-tts>=0.27.0",
+    "sounddevice>=0.4.6",
+    "soundfile>=0.12.1",
+    "numpy>=1.24.0",
+    "torch>=2.0.0",
+    "Pillow>=10.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0"
+]
+
+[project.scripts]
+voiceforge = "src.app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
