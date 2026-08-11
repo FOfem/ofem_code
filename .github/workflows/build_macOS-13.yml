@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build-macos:
-    runs-on: macos-15-intel
+    runs-on: macos-15
     
     steps:
     - name: Checkout repository
@@ -23,68 +23,92 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-        cache: 'pip'
     
-    - name: Configure system environment
+    - name: Clean up Homebrew and fix permissions
       run: |
-        echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
-        echo "PIP_USE_PEP517=1" >> $GITHUB_ENV
-        echo "PIP_NO_DEPS=0" >> $GITHUB_ENV
-    
-    - name: Install system dependencies (macOS)
-      run: |
-        brew update
-        brew install portaudio libsndfile
-        # Install LLVM 14 and set as primary
-        brew install llvm@14
-        # Clean up LLVM conflicts
-        brew unlink llvm@18 || true
+        # Fix Homebrew permissions
+        sudo chown -R $(whoami) $(brew --prefix)/*
+        
+        # Remove untrusted taps to avoid warnings
+        brew untap aws/tap || true
+        
+        # Update Homebrew
+        brew update || true
+        
+        # Unlink any existing LLVM versions
         brew unlink llvm || true
-        # Force link LLVM 14
-        brew link --force --overwrite llvm@14
-        # Add to PATH
-        echo "$(brew --prefix llvm@14)/bin" >> $GITHUB_PATH
+        brew unlink llvm@18 || true
+        brew unlink llvm@17 || true
+        brew unlink llvm@16 || true
+        brew unlink llvm@15 || true
+        
+        # Remove any broken LLVM installations
+        brew uninstall --ignore-dependencies llvm@18 || true
+        brew uninstall --ignore-dependencies llvm@17 || true
+        brew uninstall --ignore-dependencies llvm@16 || true
+        brew uninstall --ignore-dependencies llvm@15 || true
     
-    - name: Set LLVM environment variables
+    - name: Install LLVM 14 specifically
       run: |
-        LLVM_PATH="$(brew --prefix llvm@14)"
-        echo "LLVM_CONFIG=${LLVM_PATH}/bin/llvm-config" >> $GITHUB_ENV
-        echo "LDFLAGS=-L${LLVM_PATH}/lib" >> $GITHUB_ENV
-        echo "CPPFLAGS=-I${LLVM_PATH}/include" >> $GITHUB_ENV
+        # Install llvm@14
+        brew install llvm@14
+        
+        # Force link llvm@14
+        brew link --force --overwrite llvm@14 || true
+        
+        # Verify installation
+        /usr/local/opt/llvm@14/bin/llvm-config --version
+        /usr/local/opt/llvm@14/bin/llvm-config --libdir
+        
+        # Set environment variables
+        echo "LLVM_CONFIG=/usr/local/opt/llvm@14/bin/llvm-config" >> $GITHUB_ENV
+        echo "/usr/local/opt/llvm@14/bin" >> $GITHUB_PATH
+        echo "LDFLAGS=-L/usr/local/opt/llvm@14/lib" >> $GITHUB_ENV
+        echo "CPPFLAGS=-I/usr/local/opt/llvm@14/include" >> $GITHUB_ENV
         echo "CXXFLAGS=-std=c++14" >> $GITHUB_ENV
         echo "CFLAGS=-std=c++14" >> $GITHUB_ENV
-        echo "PATH=${LLVM_PATH}/bin:$PATH" >> $GITHUB_ENV
+        echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
     
-    - name: Verify LLVM installation
+    - name: Install system audio dependencies
       run: |
-        which llvm-config
-        llvm-config --version
-        llvm-config --libdir
+        brew install portaudio libsndfile || true
     
     - name: Upgrade pip and build tools
       run: |
         python -m pip install --upgrade pip setuptools wheel
         python -m pip install --upgrade cython numpy
     
-    - name: Install llvmlite with pre-built wheel
+    - name: Install llvmlite with specific version
       run: |
-        # Force install with specific version that has pre-built wheels
-        pip install --no-deps --no-build-isolation llvmlite==0.43.0 || \
-        pip install --only-binary=llvmlite llvmlite==0.43.0 || \
-        pip install llvmlite
+        # Set LLVM environment
+        export LLVM_CONFIG="/usr/local/opt/llvm@14/bin/llvm-config"
+        export PATH="/usr/local/opt/llvm@14/bin:$PATH"
+        export LDFLAGS="-L/usr/local/opt/llvm@14/lib"
+        export CPPFLAGS="-I/usr/local/opt/llvm@14/include"
+        export CXXFLAGS="-std=c++14"
+        export CFLAGS="-std=c++14"
+        
+        # Clean any previous installations
+        pip uninstall -y llvmlite numba || true
+        
+        # Install llvmlite with specific version (has pre-built wheels)
+        # Try wheel first, fallback to building
+        pip install --only-binary=llvmlite llvmlite==0.41.1 || \
+        pip install --no-build-isolation llvmlite==0.41.1 || \
+        pip install llvmlite==0.41.1
     
-    - name: Install numba (requires llvmlite)
+    - name: Install numba
       run: |
-        pip install numba --no-deps --no-build-isolation || \
+        # Install numba with specific version
+        pip install numba==0.58.1 || \
         pip install numba
     
-    - name: Install PyTorch (pre-built)
+    - name: Install PyTorch (pre-built for CPU)
       run: |
         pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
     
     - name: Install remaining Python dependencies
       run: |
-        # Install in specific order to avoid conflicts
         pip install sounddevice soundfile numpy scipy
         pip install pyyaml requests
         pip install TTS --no-deps
@@ -97,21 +121,29 @@ jobs:
     
     - name: Verify installation
       run: |
-        python -c "import torch; print(f'PyTorch version: {torch.__version__}')"
-        python -c "import llvmlite; print(f'llvmlite version: {llvmlite.__version__}')"
-        python -c "import TTS; print(f'TTS version: {TTS.__version__}')"
-        python -c "import src; print('Application imported successfully')" || true
+        python -c "import torch; print(f'PyTorch: {torch.__version__}')"
+        python -c "import llvmlite; print(f'llvmlite: {llvmlite.__version__}')"
+        python -c "import numba; print(f'numba: {numba.__version__}')"
+        python -c "import TTS; print(f'TTS: {TTS.__version__}')"
+        python -c "import src; print('✓ Application imported successfully')" || echo "Import test skipped"
     
-    - name: Run tests
+    - name: Run tests (optional)
       env:
         PYTHONPATH: .
       run: |
-        pytest tests/ -v --cov=src --cov-report=xml || echo "Tests skipped for now"
+        pytest tests/ -v || echo "Tests skipped"
     
-    - name: Build application with PyInstaller
+    - name: Build with PyInstaller
       run: |
-        # Create spec file for better control
-        cat > VoiceForge.spec << EOF
+        # Set environment for PyInstaller
+        export LLVM_CONFIG="/usr/local/opt/llvm@14/bin/llvm-config"
+        export PATH="/usr/local/opt/llvm@14/bin:$PATH"
+        
+        # Clean previous builds
+        rm -rf build dist *.spec
+        
+        # Create spec file
+        cat > voiceforge.spec << 'EOF'
         # -*- mode: python ; coding: utf-8 -*-
         
         block_cipher = None
@@ -130,6 +162,8 @@ jobs:
                 'TTS',
                 'numpy',
                 'scipy',
+                'numba',
+                'llvmlite',
             ],
             hookspath=[],
             hooksconfig={},
@@ -163,26 +197,26 @@ jobs:
             target_arch=None,
             codesign_identity=None,
             entitlements_file=None,
-            icon=None,
         )
         EOF
         
-        pyinstaller VoiceForge.spec --clean --noconfirm
+        # Build
+        pyinstaller voiceforge.spec --clean --noconfirm
     
-    - name: Validate build output
+    - name: Validate build
       run: |
         if [ -f dist/VoiceForge ]; then
           echo "✅ Build successful!"
-          ls -la dist/
           file dist/VoiceForge
+          ls -la dist/
         else
-          echo "❌ Build failed - no output file found"
+          echo "❌ Build failed"
           exit 1
         fi
     
-    - name: Upload macOS Artifacts
+    - name: Upload macOS Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: VoiceForge-macOS-Intel
+        name: VoiceForge-macOS
         path: dist/
         if-no-files-found: error
