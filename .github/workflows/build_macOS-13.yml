@@ -1,222 +1,45 @@
-name: Build VoiceForge
+name: Build VoiceForge (Simplified)
 
 on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
   release:
     types: [ created ]
 
-permissions:
-  contents: read
-
 jobs:
   build-macos:
-    runs-on: macos-15
+    runs-on: macos-latest
     
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
     
-    - name: Set up Python 3.11
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
-    - name: Clean up Homebrew and fix permissions
+    - name: Install dependencies (skip llvm issues)
       run: |
-        # Fix Homebrew permissions
-        sudo chown -R $(whoami) $(brew --prefix)/*
+        # Use conda to avoid LLVM conflicts
+        curl -L https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-MacOSX-arm64.sh -o miniforge.sh
+        bash miniforge.sh -b -p $HOME/miniforge
+        source $HOME/miniforge/bin/activate
         
-        # Remove untrusted taps to avoid warnings
-        brew untap aws/tap || true
+        # Create environment
+        conda create -n voiceforge python=3.11 -y
+        conda activate voiceforge
         
-        # Update Homebrew
-        brew update || true
-        
-        # Unlink any existing LLVM versions
-        brew unlink llvm || true
-        brew unlink llvm@18 || true
-        brew unlink llvm@17 || true
-        brew unlink llvm@16 || true
-        brew unlink llvm@15 || true
-        
-        # Remove any broken LLVM installations
-        brew uninstall --ignore-dependencies llvm@18 || true
-        brew uninstall --ignore-dependencies llvm@17 || true
-        brew uninstall --ignore-dependencies llvm@16 || true
-        brew uninstall --ignore-dependencies llvm@15 || true
+        # Install with conda (handles LLVM automatically)
+        conda install -c conda-forge llvmlite numba numpy scipy -y
+        conda install -c conda-forge sounddevice soundfile -y
+        pip install torch TTS pyinstaller
     
-    - name: Install LLVM 14 specifically
+    - name: Build
       run: |
-        # Install llvm@14
-        brew install llvm@14
-        
-        # Force link llvm@14
-        brew link --force --overwrite llvm@14 || true
-        
-        # Verify installation
-        /usr/local/opt/llvm@14/bin/llvm-config --version
-        /usr/local/opt/llvm@14/bin/llvm-config --libdir
-        
-        # Set environment variables
-        echo "LLVM_CONFIG=/usr/local/opt/llvm@14/bin/llvm-config" >> $GITHUB_ENV
-        echo "/usr/local/opt/llvm@14/bin" >> $GITHUB_PATH
-        echo "LDFLAGS=-L/usr/local/opt/llvm@14/lib" >> $GITHUB_ENV
-        echo "CPPFLAGS=-I/usr/local/opt/llvm@14/include" >> $GITHUB_ENV
-        echo "CXXFLAGS=-std=c++14" >> $GITHUB_ENV
-        echo "CFLAGS=-std=c++14" >> $GITHUB_ENV
-        echo "MACOSX_DEPLOYMENT_TARGET=10.15" >> $GITHUB_ENV
+        source $HOME/miniforge/bin/activate
+        conda activate voiceforge
+        pyinstaller --name="VoiceForge" --windowed --onefile src/main.py
     
-    - name: Install system audio dependencies
-      run: |
-        brew install portaudio libsndfile || true
-    
-    - name: Upgrade pip and build tools
-      run: |
-        python -m pip install --upgrade pip setuptools wheel
-        python -m pip install --upgrade cython numpy
-    
-    - name: Install llvmlite with specific version
-      run: |
-        # Set LLVM environment
-        export LLVM_CONFIG="/usr/local/opt/llvm@14/bin/llvm-config"
-        export PATH="/usr/local/opt/llvm@14/bin:$PATH"
-        export LDFLAGS="-L/usr/local/opt/llvm@14/lib"
-        export CPPFLAGS="-I/usr/local/opt/llvm@14/include"
-        export CXXFLAGS="-std=c++14"
-        export CFLAGS="-std=c++14"
-        
-        # Clean any previous installations
-        pip uninstall -y llvmlite numba || true
-        
-        # Install llvmlite with specific version (has pre-built wheels)
-        # Try wheel first, fallback to building
-        pip install --only-binary=llvmlite llvmlite==0.41.1 || \
-        pip install --no-build-isolation llvmlite==0.41.1 || \
-        pip install llvmlite==0.41.1
-    
-    - name: Install numba
-      run: |
-        # Install numba with specific version
-        pip install numba==0.58.1 || \
-        pip install numba
-    
-    - name: Install PyTorch (pre-built for CPU)
-      run: |
-        pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-    
-    - name: Install remaining Python dependencies
-      run: |
-        pip install sounddevice soundfile numpy scipy
-        pip install pyyaml requests
-        pip install TTS --no-deps
-        pip install --upgrade TTS
-        pip install pyinstaller pytest pytest-cov
-    
-    - name: Install application
-      run: |
-        pip install -e .
-    
-    - name: Verify installation
-      run: |
-        python -c "import torch; print(f'PyTorch: {torch.__version__}')"
-        python -c "import llvmlite; print(f'llvmlite: {llvmlite.__version__}')"
-        python -c "import numba; print(f'numba: {numba.__version__}')"
-        python -c "import TTS; print(f'TTS: {TTS.__version__}')"
-        python -c "import src; print('✓ Application imported successfully')" || echo "Import test skipped"
-    
-    - name: Run tests (optional)
-      env:
-        PYTHONPATH: .
-      run: |
-        pytest tests/ -v || echo "Tests skipped"
-    
-    - name: Build with PyInstaller
-      run: |
-        # Set environment for PyInstaller
-        export LLVM_CONFIG="/usr/local/opt/llvm@14/bin/llvm-config"
-        export PATH="/usr/local/opt/llvm@14/bin:$PATH"
-        
-        # Clean previous builds
-        rm -rf build dist *.spec
-        
-        # Create spec file
-        cat > voiceforge.spec << 'EOF'
-        # -*- mode: python ; coding: utf-8 -*-
-        
-        block_cipher = None
-        
-        a = Analysis(
-            ['src/main.py'],
-            pathex=[],
-            binaries=[],
-            datas=[],
-            hiddenimports=[
-                'tkinter',
-                'sounddevice',
-                'soundfile',
-                'torch',
-                'torch.nn',
-                'TTS',
-                'numpy',
-                'scipy',
-                'numba',
-                'llvmlite',
-            ],
-            hookspath=[],
-            hooksconfig={},
-            runtime_hooks=[],
-            excludes=[],
-            win_no_prefer_redirects=False,
-            win_private_assemblies=False,
-            cipher=block_cipher,
-            noarchive=False,
-        )
-        
-        pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
-        
-        exe = EXE(
-            pyz,
-            a.scripts,
-            a.binaries,
-            a.zipfiles,
-            a.datas,
-            [],
-            name='VoiceForge',
-            debug=False,
-            bootloader_ignore_signals=False,
-            strip=False,
-            upx=True,
-            upx_exclude=[],
-            runtime_tmpdir=None,
-            console=False,
-            disable_windowed_traceback=False,
-            argv_emulation=False,
-            target_arch=None,
-            codesign_identity=None,
-            entitlements_file=None,
-        )
-        EOF
-        
-        # Build
-        pyinstaller voiceforge.spec --clean --noconfirm
-    
-    - name: Validate build
-      run: |
-        if [ -f dist/VoiceForge ]; then
-          echo "✅ Build successful!"
-          file dist/VoiceForge
-          ls -la dist/
-        else
-          echo "❌ Build failed"
-          exit 1
-        fi
-    
-    - name: Upload macOS Artifact
+    - name: Upload
       uses: actions/upload-artifact@v4
       with:
         name: VoiceForge-macOS
         path: dist/
-        if-no-files-found: error
